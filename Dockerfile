@@ -1,4 +1,4 @@
-FROM alpine:latest AS authelia_downloader
+FROM --platform=$BUILDPLATFORM alpine:latest AS authelia_downloader
 ARG TARGETARCH
 
 RUN apk update && apk add --no-cache curl tar xz jq
