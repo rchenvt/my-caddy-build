@@ -1,0 +1,4 @@
+#!/command/with-contenv sh
+echo "[init-authelia] Setting up permissions..."
+mkdir -p /config/authelia
+chown -R appuser:appuser /config/authelia
