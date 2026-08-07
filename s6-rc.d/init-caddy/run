@@ -1,4 +1,0 @@
-#!/command/with-contenv sh
-echo "[init-caddy] Preparing Caddy folders..."
-mkdir -p /etc/caddy /data/caddy /config/caddy /var/log/caddy
-chown -R appuser:appuser /etc/caddy /data/caddy /config/caddy /var/log/caddy

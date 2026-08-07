@@ -1,7 +1,0 @@
-#!/command/with-contenv sh
-echo "[init-inbucket] Setting up mail storage..."
-mkdir -p /config/inbucket /data/inbucket
-if [ ! -f "/config/inbucket/greeting.html" ]; then
-    cp /opt/inbucket/defaults/greeting.html /config/inbucket/greeting.html
-fi
-chown -R appuser:appuser /config/inbucket /data/inbucket
