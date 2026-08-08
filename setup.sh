@@ -46,10 +46,8 @@ gen-s6-folders() {
 # ---------------------------------------------------------
 gen-oneshot() {
     echo "Generating oneshot init scripts..."
-
-    # Ensure directories exist before writing scripts
     for app in caddy authelia lldap inbucket filebrowser permissions; do
-        mkdir -p "s6-overlay/s6-rc.d/init-$app"
+        echo "/etc/s6-overlay/s6-rc.d/init-$app/run" > s6-rc.d/init-$app/up
     done
 
     # Init-permissions: update appuser:appuser to PUID:PGID if exist at container runtime
