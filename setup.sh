@@ -5,7 +5,7 @@ set -e
 rm -rf s6-overlay Dockerfile healthcheck.sh docker-compose.yml
 
 # 1. Create Folder Structure
-gen-s6-framework() {
+gen-s6-folders() {
     echo "Building clean s6-overlay service framework..."
     
     # 1. Initialize user bundle auto-start directory

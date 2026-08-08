@@ -1,0 +1,7 @@
+#!/command/with-contenv sh
+echo "[init-filebrowser] Setting Up Config Files..."
+mkdir -p /config/filebrowser /data/filebrowser /srv
+if [ ! -f "/config/filebrowser/settings.json" ]; then
+    cp -a /defaults/settings.json /config/filebrowser/settings.json
+fi
+chown -R appuser:appuser /config/filebrowser /data/filebrowser /srv
