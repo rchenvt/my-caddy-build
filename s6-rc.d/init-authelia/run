@@ -1,7 +1,0 @@
-#!/command/with-contenv sh
-echo "[init-authelia] Setting up permissions..."
-mkdir -p /config/authelia
-if [ ! -f "/config/authelia/configuration.yml" ]; then
-    touch /config/authelia/configuration.yml
-fi
-chown -R appuser:appuser /config/authelia
