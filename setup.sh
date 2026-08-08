@@ -2,45 +2,58 @@
 # setup.sh - Generates the All-In-One Auth Stack (Caddy, Authelia, LLDAP, Inbucket)
 
 set -e
-rm -rf s6-rc.d Dockerfile healthcheck.sh docker-compose.yml
+rm -rf s6-overlay Dockerfile healthcheck.sh docker-compose.yml
 
 # 1. Create Folder Structure
-gen-s6-folders() {
-    echo "Creating s6-overlay service directory structure..."
-    mkdir -p s6-rc.d/user/contents.d
+gen-s6-framework() {
+    echo "Building clean s6-overlay service framework..."
+    
+    # 1. Initialize user bundle auto-start directory
+    mkdir -p s6-overlay/user-bundles.d/user/contents.d
+
+    # 2. Build global init-permissions framework
+    mkdir -p s6-overlay/s6-rc.d/init-permissions/dependencies.d
+    echo "oneshot" > s6-overlay/s6-rc.d/init-permissions/type
+
+    # 3. Loop through apps to create types and dependency nodes
     for app in caddy authelia lldap inbucket filebrowser; do
-        mkdir -p "s6-rc.d/$app/dependencies.d"
-        mkdir -p "s6-rc.d/init-$app/dependencies.d"
-        # Link apps to the 'user' bundle for auto-start
-        touch "s6-rc.d/user/contents.d/$app"
-        touch "s6-rc.d/user/contents.d/init-$app"
-        # Link apps to their respective init scripts
-        touch "s6-rc.d/$app/dependencies.d/init-$app"
-        touch "s6-rc.d/init-$app/dependencies.d/init-permissions"
-        # Set service types
-        echo "longrun" > "s6-rc.d/$app/type"
-        echo "oneshot" > "s6-rc.d/init-$app/type"
+        mkdir -p "s6-overlay/s6-rc.d/$app/dependencies.d"
+        mkdir -p "s6-overlay/s6-rc.d/init-$app/dependencies.d"
+
+        # Define s6 service categories
+        echo "longrun" > "s6-overlay/s6-rc.d/$app/type"
+        echo "oneshot" > "s6-overlay/s6-rc.d/init-$app/type"
+
+        # Internal dependency chain: app -> its init script -> global permissions
+        touch "s6-overlay/s6-rc.d/$app/dependencies.d/init-$app"
+        touch "s6-overlay/s6-rc.d/init-$app/dependencies.d/init-permissions"
+
+        # Register only the main app to auto-start (s6-rc will pull dependencies)
+        touch "s6-overlay/user-bundles.d/user/contents.d/$app"
     done
-    # init-permissions
-    mkdir -p s6-rc.d/init-permissions/dependencies.d
-    touch s6-rc.d/user/contents.d/init-permissions
-    echo "oneshot" > "s6-rc.d/init-permissions/type"
-    # app dependencies
-    touch s6-rc.d/inbucket/dependencies.d/caddy
-    touch s6-rc.d/lldap/dependencies.d/inbucket
-    touch s6-rc.d/authelia/dependencies.d/lldap
-    touch s6-rc.d/filebrowser/dependencies.d/authelia
+
+    # 4. Inter-app service stack definitions
+    touch s6-overlay/s6-rc.d/inbucket/dependencies.d/caddy
+    touch s6-overlay/s6-rc.d/lldap/dependencies.d/inbucket
+    touch s6-overlay/s6-rc.d/authelia/dependencies.d/lldap
+    touch s6-overlay/s6-rc.d/filebrowser/dependencies.d/authelia
+    
+    echo "Framework directory tree complete."
 }
 
 # ---------------------------------------------------------
 # 2. Generate Init (Oneshot) Scripts
 # ---------------------------------------------------------
 gen-oneshot() {
+    echo "Generating oneshot init scripts..."
+
+    # Ensure directories exist before writing scripts
     for app in caddy authelia lldap inbucket filebrowser permissions; do
-        echo "/etc/s6-overlay/s6-rc.d/init-$app/run" > s6-rc.d/init-$app/up
+        mkdir -p "s6-overlay/s6-rc.d/init-$app"
     done
+
     # Init-permissions: update appuser:appuser to PUID:PGID if exist at container runtime
-    cat << 'EOF' > s6-rc.d/init-permissions/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/init-permissions/run
 #!/command/with-contenv sh
 # Dynamically remap the placeholder user to the runtime PUID/PGID
 
@@ -60,7 +73,7 @@ chown -R appuser:appuser /data /config /srv
 EOF
 
     # Init Authelia: Deconstructed from official entrypoint
-    cat << 'EOF' > s6-rc.d/init-authelia/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/init-authelia/run
 #!/command/with-contenv sh
 echo "[init-authelia] Setting up permissions..."
 mkdir -p /config/authelia
@@ -71,13 +84,11 @@ chown -R appuser:appuser /config/authelia
 EOF
 
     # Init LLDAP: Deconstructed from official entrypoint
-    cat << 'EOF' > s6-rc.d/init-lldap/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/init-lldap/run
 #!/command/with-contenv sh
 echo "[init-lldap] Preparing LLDAP env..."
 mkdir -p /data/lldap
-# Fix permissions like the original script
-#find /app/lldap \! -user appuser -exec chown appuser:appuser '{}' +
-#find /data/lldap \! -user appuser -exec chown appuser:appuser '{}' +
+
 if [ ! -f "/data/lldap/lldap_config.toml" ]; then
     cp -a /app/lldap_config.docker_template.toml /data/lldap/lldap_config.toml
 fi
@@ -85,7 +96,7 @@ chown -R appuser:appuser /app /data/lldap
 EOF
 
     # Init Inbucket: Deconstructed from start-inbucket.sh
-    cat << 'EOF' > s6-rc.d/init-inbucket/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/init-inbucket/run
 #!/command/with-contenv sh
 echo "[init-inbucket] Setting up mail storage..."
 mkdir -p /config/inbucket /data/inbucket
@@ -96,7 +107,7 @@ chown -R appuser:appuser /config/inbucket /data/inbucket
 EOF
 
     # Init Caddy
-    cat << 'EOF' > s6-rc.d/init-caddy/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/init-caddy/run
 #!/command/with-contenv sh
 echo "[init-caddy] Preparing Caddy folders..."
 mkdir -p /etc/caddy /data/caddy /config/caddy /var/log/caddy
@@ -106,30 +117,30 @@ fi
 if [ ! -f /var/log/caddy/access.log ]; then
     touch /var/log/caddy/access.log
 fi
-chown -R appuser:appuser /etc/caddy /data/caddy /config/caddy /var/log/caddy
+chown -R appuser:appuser /data/caddy /config/caddy /var/log/caddy
 EOF
 
-    # filebrowser
-    cat << 'EOF' > s6-rc.d/init-filebrowser/run
+    # Init filebrowser
+    cat << 'EOF' > s6-overlay/s6-rc.d/init-filebrowser/run
 #!/command/with-contenv sh
 echo "[init-filebrowser] Setting Up Config Files..."
-# Ensure configuration exists
 mkdir -p /config/filebrowser /data/filebrowser /srv
 if [ ! -f "/config/filebrowser/settings.json" ]; then
-  cp -a /defaults/settings.json /config/filebrowser/settings.json
+    cp -a /defaults/settings.json /config/filebrowser/settings.json
 fi
 chown -R appuser:appuser /config/filebrowser /data/filebrowser /srv
 EOF
 
-    # Ensure all scripts are executable
-    chmod +x s6-rc.d/*/up s6-rc.d/*/run 2>/dev/null || true
+    # Ensure all newly created init run scripts are strictly executable
+    chmod +x s6-overlay/s6-rc.d/*/run 2>/dev/null || true
+    echo "Oneshot generation complete."
 }
 # ---------------------------------------------------------
 # 3. Generate Service (Longrun) Run Scripts
 # ---------------------------------------------------------
 gen-longrun() {
     # Authelia
-    cat << 'EOF' > s6-rc.d/authelia/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/authelia/run
 #!/command/with-contenv sh
 
 echo "[authelia] Waiting for LLDAP to be ready on localhost:3890..."
@@ -142,28 +153,28 @@ echo "[authelia] LLDAP and INBUCKET are up, starting Authelia..."
 exec s6-setuidgid appuser authelia --config /config/authelia/configuration.yml
 EOF
     # Caddy
-    cat << 'EOF' > s6-rc.d/caddy/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/caddy/run
 #!/command/with-contenv sh
 exec s6-setuidgid appuser caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
 EOF
     # Inbucket
-    cat << 'EOF' > s6-rc.d/inbucket/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/inbucket/run
 #!/command/with-contenv sh
 exec s6-setuidgid appuser inbucket -logjson
 EOF
     # Lldap
-    cat << 'EOF' > s6-rc.d/lldap/run
-#!/command/with-contenv bash
+    cat << 'EOF' > s6-overlay/s6-rc.d/lldap/run
+#!/command/with-contenv sh
 cd /app
 exec s6-setuidgid appuser lldap run --config-file /data/lldap/lldap_config.toml
 EOF
     # Filebrowser
-    cat << 'EOF' > s6-rc.d/filebrowser/run
+    cat << 'EOF' > s6-overlay/s6-rc.d/filebrowser/run
 #!/command/with-contenv sh
 exec s6-setuidgid appuser filebrowser -c /config/filebrowser/settings.json
 EOF
     # Ensure all scripts are executable
-    chmod +x s6-rc.d/*/up s6-rc.d/*/run 2>/dev/null || true
+    chmod +x s6-overlay/s6-rc.d/*/run 2>/dev/null || true
 }
 # ---------------------------------------------------------
 # 4. Generate the Consolidated Dockerfile
@@ -206,7 +217,7 @@ FROM filebrowser/filebrowser:latest AS filebrowser_bin
 
 FROM ${CADDY}
 
-RUN apk add --no-cache tzdata bash wget && rm -f /var/log/apk.log
+RUN apk add --no-cache tzdata && rm -f /var/log/apk.log
 
 RUN addgroup -S -g 1000 appuser && \
     adduser -S -u 1000 -G appuser appuser
@@ -242,13 +253,11 @@ ENV INBUCKET_STORAGE_MAILBOXMSGCAP=300
 ENV X_AUTHELIA_CONFIG=/config/authelia/configuration.yml
 ENV X_AUTHELIA_CONFIG_FILTERS=template
 
-# ENV RUST_LOG=lldap=warn,warp=warn,hyper=warn,sqlx=warn
-
-COPY s6-rc.d /etc/s6-overlay/s6-rc.d
-RUN chmod +x /etc/s6-overlay/s6-rc.d/*/up /etc/s6-overlay/s6-rc.d/*/run
+COPY s6-overlay/ /etc/s6-overlay/
+RUN chmod +x /etc/s6-overlay/s6-rc.d/*/run
 
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
-RUN chmod +x/usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=1m --retries=3 CMD /usr/local/bin/healthcheck.sh
 
