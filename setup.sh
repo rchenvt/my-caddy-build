@@ -1,8 +1,8 @@
 #!/bin/sh
-# setup.sh - Generates the All-In-One Auth Stack (Caddy, Authelia, LLDAP, Inbucket)
+# setup.sh - Generates the All-In-One Auth Stack (Caddy, Authelia, LLDAP, Inbucket, Filebrowser)
 
 set -e
-rm -rf s6-overlay Dockerfile healthcheck.sh docker-compose.yml
+rm -rf s6-overlay Dockerfile healthcheck.sh settings.josn docker-compose.yml
 
 # 1. Create Folder Structure
 gen-s6-folders() {
@@ -46,6 +46,7 @@ gen-s6-folders() {
 # ---------------------------------------------------------
 gen-oneshot() {
     echo "Generating oneshot init scripts..."
+
     for app in caddy authelia lldap inbucket filebrowser permissions; do
         echo "/etc/s6-overlay/s6-rc.d/init-$app/run" > s6-overlay/s6-rc.d/init-$app/up
     done
@@ -130,7 +131,7 @@ chown -R appuser:appuser /config/filebrowser /data/filebrowser /srv
 EOF
 
     # Ensure all newly created init run scripts are strictly executable
-    chmod +x s6-overlay/s6-rc.d/*/run 2>/dev/null || true
+    chmod +x s6-overlay/s6-rc.d/*/up 2>/dev/null || true
     echo "Oneshot generation complete."
 }
 # ---------------------------------------------------------
@@ -252,7 +253,7 @@ ENV X_AUTHELIA_CONFIG=/config/authelia/configuration.yml
 ENV X_AUTHELIA_CONFIG_FILTERS=template
 
 COPY s6-overlay/ /etc/s6-overlay/
-RUN chmod +x /etc/s6-overlay/s6-rc.d/*/run
+RUN chmod +x /etc/s6-overlay/s6-rc.d/*/run /etc/s6-overlay/s6-rc.d/*/up
 
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh
@@ -281,6 +282,22 @@ wget -q --spider http://localhost:8001/health || exit 1
 EOF
     chmod +x healthcheck.sh
 }
+# ---------------------------------------------------------
+# Generate settings.json for filebrowser
+#----------------------------------------------------------
+gen-settings() {
+    cat <<'EOF' > settings.json
+{
+  "port": 8001,
+  "baseURL": "",
+  "address": "",
+  "log": "stdout",
+  "database": "/data/filebrowser/filebrowser.db",
+  "root": "/srv"
+}
+EOF
+}
+
 # ---------------------------------------------------------
 # 6. Generate Docker Compose
 # ---------------------------------------------------------
@@ -339,6 +356,7 @@ gen-s6-folders
 gen-oneshot
 gen-longrun
 gen-healthcheck
+gen-settings
 gen-dockerfile
 gen-compose
 
