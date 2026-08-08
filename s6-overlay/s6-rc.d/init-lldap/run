@@ -1,8 +1,0 @@
-#!/command/with-contenv sh
-echo "[init-lldap] Preparing LLDAP env..."
-mkdir -p /data/lldap
-
-if [ ! -f "/data/lldap/lldap_config.toml" ]; then
-    cp -a /app/lldap_config.docker_template.toml /data/lldap/lldap_config.toml
-fi
-chown -R appuser:appuser /app /data/lldap
