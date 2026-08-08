@@ -44,7 +44,7 @@ gen-s6-folders() {
 gen-oneshot() {
     echo "Generating oneshot init scripts..."
 
-    echo "/etc/s6-overlay/s6-rc.d/init-permissions/run" > s6-overlay/s6-rc.d/init-permissions/up
+    echo "./run" > s6-overlay/s6-rc.d/init-permissions/up
 
     # Init-permissions: update appuser:appuser to PUID:PGID if exist at container runtime
     cat << 'EOF' > s6-overlay/s6-rc.d/init-permissions/run
