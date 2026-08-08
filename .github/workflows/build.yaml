@@ -18,6 +18,9 @@ jobs:
         with:
           # Fixes manual trigger checking out main instead of the selected branch
           ref: ${{ github.ref }}
+      - name: Generate s6 Framework and Files
+        run: |
+          bash ./setup.sh
 
       # The metadata action versions are v5 (v6 does not exist yet)
       - name: Docker Metadata

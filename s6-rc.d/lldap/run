@@ -1,3 +1,0 @@
-#!/command/with-contenv bash
-cd /app
-exec s6-setuidgid appuser lldap run --config-file /data/lldap/lldap_config.toml
