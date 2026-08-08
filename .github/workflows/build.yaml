@@ -20,7 +20,7 @@ jobs:
           ref: ${{ github.ref }}
       - name: Generate s6 Framework and Files
         run: |
-          sh ./setup.sh
+          bash ./setup.sh
 
       # The metadata action versions are v5 (v6 does not exist yet)
       - name: Docker Metadata
