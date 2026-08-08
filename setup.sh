@@ -155,7 +155,7 @@ EOF
     # Caddy
     cat << 'EOF' > s6-overlay/s6-rc.d/caddy/run
 #!/command/with-contenv sh
-exec s6-setuidgid appuser caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+exec s6-setuidgid appuser caddy run --config /config/caddy/Caddyfile --adapter caddyfile
 EOF
     # Inbucket
     cat << 'EOF' > s6-overlay/s6-rc.d/inbucket/run
