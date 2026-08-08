@@ -69,34 +69,28 @@ for app in authelia caddy filebrowser inbucket lldap; do
     mkdir -p /data/$app
 done
 
-echo "[init-authelia]
+echo "[init-authelia]"
 if [ ! -f "/config/authelia/configuration.yml" ]; then
     touch /config/authelia/configuration.yml
 fi
 
-echo "[init-caddy]
+echo "[init-caddy]"
 mkdir -p /var/log/caddy
-if [ ! -f /var/log/caddy/caddy.log ]; then
-    touch /var/log/caddy/caddy.log
-fi
-if [ ! -f /var/log/caddy/access.log ]; then
-    touch /var/log/caddy/access.log
-fi
-if [ ! -f /config/caddy/Caddyfile ];
-    cp -a /etc/caddy/Caddyfile /config/caddy/Caddyfile
-fi
+[ ! -f /var/log/caddy/caddy.log ] && touch /var/log/caddy/caddy.log
+[ ! -f /var/log/caddy/access.log ] && touch /var/log/caddy/access.log
+[ ! -f /config/caddy/Caddyfile ] && cp -a /etc/caddy/Caddyfile /config/caddy/Caddyfile
 
-echo "[init-filebrowser]
+echo "[init-filebrowser]"
 if [ ! -f "/config/filebrowser/settings.json" ]; then
     cp -a /defaults/settings.json /config/filebrowser/settings.json
 fi
 
-echo "[init-inbucket]
+echo "[init-inbucket]"
 if [ ! -f "/config/inbucket/greeting.html" ]; then
     cp -a /opt/inbucket/defaults/greeting.html /config/inbucket/greeting.html
 fi
 
-echo "[init-lldap]
+echo "[init-lldap]"
 if [ ! -f "/config/lldap/lldap_config.toml" ]; then
     cp -a /app/lldap_config.docker_template.toml /config/lldap/lldap_config.toml
 fi
