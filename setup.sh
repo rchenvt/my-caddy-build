@@ -225,16 +225,8 @@ RUN ln -s /app/lldap /usr/bin/lldap && \
 
 COPY --from=filebrowser_bin /bin/filebrowser /usr/bin/filebrowser
 # RUN setcap 'cap_net_bind_service=+ep' /usr/bin/filebrowser
-RUN cat << 'EOFJSON' > /defaults/settings.json
-{
-  "port": 8001,
-  "baseURL": "",
-  "address": "",
-  "log": "stdout",
-  "database": "/data/filebrowser/filebrowser.db",
-  "root": "/srv"
-} 
-EOFJSON
+COPY settings.json /defaults/settings.json
+RUN mkdir -p /srv && chown appuser:appuser /srv
 
 ENV INBUCKET_SMTP_DISCARDDOMAINS=bitbucket.local
 ENV INBUCKET_SMTP_TIMEOUT=30s
