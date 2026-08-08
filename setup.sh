@@ -18,15 +18,12 @@ gen-s6-folders() {
     # 3. Loop through apps to create types and dependency nodes
     for app in caddy authelia lldap inbucket filebrowser; do
         mkdir -p "s6-overlay/s6-rc.d/$app/dependencies.d"
-        mkdir -p "s6-overlay/s6-rc.d/init-$app/dependencies.d"
 
         # Define s6 service categories
         echo "longrun" > "s6-overlay/s6-rc.d/$app/type"
-        echo "oneshot" > "s6-overlay/s6-rc.d/init-$app/type"
 
         # Internal dependency chain: app -> its init script -> global permissions
-        touch "s6-overlay/s6-rc.d/$app/dependencies.d/init-$app"
-        touch "s6-overlay/s6-rc.d/init-$app/dependencies.d/init-permissions"
+        touch "s6-overlay/s6-rc.d/$app/dependencies.d/init-permissions"
 
         # Register only the main app to auto-start (s6-rc will pull dependencies)
         touch "s6-overlay/user-bundles.d/user/contents.d/$app"
@@ -47,9 +44,7 @@ gen-s6-folders() {
 gen-oneshot() {
     echo "Generating oneshot init scripts..."
 
-    for app in caddy authelia lldap inbucket filebrowser permissions; do
-        echo "/etc/s6-overlay/s6-rc.d/init-$app/run" > s6-overlay/s6-rc.d/init-$app/up
-    done
+    echo "/etc/s6-overlay/s6-rc.d/init-permissions/run" > s6-overlay/s6-rc.d/init-permissions/up
 
     # Init-permissions: update appuser:appuser to PUID:PGID if exist at container runtime
     cat << 'EOF' > s6-overlay/s6-rc.d/init-permissions/run
@@ -68,70 +63,50 @@ if [ ! -z "$PUID" ] && [ "$(id -u appuser)" != "$PUID" ]; then
     sed -i "s/^appuser:x:[0-9]*:[0-9]*:/appuser:x:$PUID:$PGID:/" /etc/passwd
 fi
 
-chown -R appuser:appuser /data /config /srv
-EOF
+# Prepare the working directories for apps
+for app in authelia caddy filebrowser inbucket lldap; do
+    mkdir -p /config/$app
+    mkdir -p /data/$app
+done
 
-    # Init Authelia: Deconstructed from official entrypoint
-    cat << 'EOF' > s6-overlay/s6-rc.d/init-authelia/run
-#!/command/with-contenv sh
-echo "[init-authelia] Setting up permissions..."
-mkdir -p /config/authelia
+echo "[init-authelia]
 if [ ! -f "/config/authelia/configuration.yml" ]; then
     touch /config/authelia/configuration.yml
 fi
-chown -R appuser:appuser /config/authelia
-EOF
 
-    # Init LLDAP: Deconstructed from official entrypoint
-    cat << 'EOF' > s6-overlay/s6-rc.d/init-lldap/run
-#!/command/with-contenv sh
-echo "[init-lldap] Preparing LLDAP env..."
-mkdir -p /data/lldap
-
-if [ ! -f "/data/lldap/lldap_config.toml" ]; then
-    cp -a /app/lldap_config.docker_template.toml /data/lldap/lldap_config.toml
-fi
-chown -R appuser:appuser /app /data/lldap
-EOF
-
-    # Init Inbucket: Deconstructed from start-inbucket.sh
-    cat << 'EOF' > s6-overlay/s6-rc.d/init-inbucket/run
-#!/command/with-contenv sh
-echo "[init-inbucket] Setting up mail storage..."
-mkdir -p /config/inbucket /data/inbucket
-if [ ! -f "/config/inbucket/greeting.html" ]; then
-    cp -a /opt/inbucket/defaults/greeting.html /config/inbucket/greeting.html
-fi
-chown -R appuser:appuser /config/inbucket /data/inbucket
-EOF
-
-    # Init Caddy
-    cat << 'EOF' > s6-overlay/s6-rc.d/init-caddy/run
-#!/command/with-contenv sh
-echo "[init-caddy] Preparing Caddy folders..."
-mkdir -p /etc/caddy /data/caddy /config/caddy /var/log/caddy
+echo "[init-caddy]
+mkdir -p /var/log/caddy
 if [ ! -f /var/log/caddy/caddy.log ]; then
     touch /var/log/caddy/caddy.log
 fi
 if [ ! -f /var/log/caddy/access.log ]; then
     touch /var/log/caddy/access.log
 fi
-chown -R appuser:appuser /data/caddy /config/caddy /var/log/caddy
-EOF
+if [ ! -f /config/caddy/Caddyfile ];
+    cp -a /etc/caddy/Caddyfile /config/caddy/Caddyfile
+fi
 
-    # Init filebrowser
-    cat << 'EOF' > s6-overlay/s6-rc.d/init-filebrowser/run
-#!/command/with-contenv sh
-echo "[init-filebrowser] Setting Up Config Files..."
-mkdir -p /config/filebrowser /data/filebrowser /srv
+echo "[init-filebrowser]
 if [ ! -f "/config/filebrowser/settings.json" ]; then
     cp -a /defaults/settings.json /config/filebrowser/settings.json
 fi
-chown -R appuser:appuser /config/filebrowser /data/filebrowser /srv
+
+echo "[init-inbucket]
+if [ ! -f "/config/inbucket/greeting.html" ]; then
+    cp -a /opt/inbucket/defaults/greeting.html /config/inbucket/greeting.html
+fi
+
+echo "[init-lldap]
+if [ ! -f "/config/lldap/lldap_config.toml" ]; then
+    cp -a /app/lldap_config.docker_template.toml /config/lldap/lldap_config.toml
+fi
+
+chown -R appuser:appuser /app /data /config /srv /var/lib/caddy
 EOF
 
     # Ensure all newly created init run scripts are strictly executable
     chmod +x s6-overlay/s6-rc.d/*/up 2>/dev/null || true
+    chmod +x s6-overlay/s6-rc.d/*/run 2>/dev/null || true
     echo "Oneshot generation complete."
 }
 # ---------------------------------------------------------
@@ -165,7 +140,7 @@ EOF
     cat << 'EOF' > s6-overlay/s6-rc.d/lldap/run
 #!/command/with-contenv sh
 cd /app
-exec s6-setuidgid appuser lldap run --config-file /data/lldap/lldap_config.toml
+exec s6-setuidgid appuser lldap run --config-file /config/lldap/lldap_config.toml
 EOF
     # Filebrowser
     cat << 'EOF' > s6-overlay/s6-rc.d/filebrowser/run
@@ -236,7 +211,6 @@ RUN ln -s /app/lldap /usr/bin/lldap && \
 COPY --from=filebrowser_bin /bin/filebrowser /usr/bin/filebrowser
 # RUN setcap 'cap_net_bind_service=+ep' /usr/bin/filebrowser
 COPY settings.json /defaults/settings.json
-RUN mkdir -p /srv && chown appuser:appuser /srv
 
 ENV INBUCKET_SMTP_DISCARDDOMAINS=bitbucket.local
 ENV INBUCKET_SMTP_TIMEOUT=30s
@@ -305,12 +279,6 @@ gen-compose() {
     cat << 'EOF' > docker-compose.yml
 services:
   caddy:
-#    build:
-#      context: .
-#      args:
-#        - S6_ARCH=${S6_ARCH:-x86_64}
-#        - S6_VER=${S6_VER:-3.2.2.0}
-#        - CADDY=${CADDY:-caddy:alpine}
     image: ghcr:rchenvt/caddy
     container_name: caddy
     ports:
@@ -318,9 +286,9 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./read/Caddyfile:/etc/caddy/Caddyfile
+      - ./read/Caddyfile:/config/caddy/Caddyfile
       - ./log/caddy:/var/log/caddy
-      - ./read/lldap_config.toml:/data/lldap/lldap_config.toml
+      - ./read/lldap_config.toml:/config/lldap/lldap_config.toml
       - ./read/configuration.yml:/config/authelia/configuration.yml
       - ./config:/config
       - ./data:/data
@@ -328,27 +296,14 @@ services:
       - DOMAINNAME=${DOMAINNAME}
       - TZ=$TZ
       # Caddy
-#      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-#      - CROWDSEC_API_KEY=${CROWDSEC_API_KEY}
-      # Lldap
-      - LLDAP_LDAP_BASE_DN=$LLDAP_LDAP_BASE_DN
-      - LLDAP_LDAP_USER_DN=$LLDAP_LDAP_USER_DN
-      - LLDAP_LDAP_USER_PASS=$LLDAP_LDAP_USER_PASS
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
       # Silent lldap session logs
       - RUST_LOG=lldap=warn,warp=warn,hyper=warn,sqlx=warn
-      # Authelia
-      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD=$LLDAP_LDAP_USER_PASS
-      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_BASE_DN=$LLDAP_LDAP_BASE_DN
-      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_USER=uid=${LLDAP_LDAP_USER_DN},ou=people,${LLDAP_LDAP_BASE_DN}
-#      - X_AUTHELIA_CONFIG_FILTERS=template
       # Inbucket
       - INBUCKET_LOGLEVEL=error
       # Filebrowser
       - FB_NOAUTH=true
-      - 
     restart: unless-stopped
-#    networks:
-#      - caddy
 EOF
 }
 
