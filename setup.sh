@@ -95,7 +95,7 @@ if [ ! -f "/config/lldap/lldap_config.toml" ]; then
     cp -a /app/lldap_config.docker_template.toml /config/lldap/lldap_config.toml
 fi
 
-chown -R appuser:appuser /app /data /config /srv /var/lib/caddy
+chown -R appuser:appuser /app /data /config /srv /var/log/caddy
 EOF
 
     # Ensure all newly created init run scripts are strictly executable
