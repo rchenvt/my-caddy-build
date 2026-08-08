@@ -248,6 +248,7 @@ COPY s6-rc.d /etc/s6-overlay/s6-rc.d
 RUN chmod +x /etc/s6-overlay/s6-rc.d/*/up /etc/s6-overlay/s6-rc.d/*/run
 
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x/usr/local/bin/healthcheck.sh
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=1m --retries=3 CMD /usr/local/bin/healthcheck.sh
 
